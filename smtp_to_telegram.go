@@ -288,13 +288,13 @@ func SendEmailToTelegram(e *mail.Envelope,
 	}
 
 	for _, chatId := range strings.Split(telegramConfig.telegramChatIds, ",") {
-		fromMail := ""
+		toMail := ""
 		if strings.Contains(chatId, ":") {
 			parsedChatId := strings.Split(chatId, ":")
-			fromMail, chatId = parsedChatId[0], parsedChatId[1]
+			toMail, chatId = parsedChatId[0], parsedChatId[1]
 		}
-		logger.Info(fromMail, e.MailFrom.String())
-		if !strings.Contains(e.MailFrom.String(), fromMail) {
+		logger.Info(toMail, JoinEmailAddresses(e.RcptTo))
+		if !strings.Contains(JoinEmailAddresses(e.RcptTo), toMail) {
 			continue
 		}
 		sentMessage, err := SendMessageToChat(message, chatId, telegramConfig, &client)
