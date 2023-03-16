@@ -29,7 +29,7 @@ docker run \
     --name smtp_to_telegram \
     -e ST_TELEGRAM_CHAT_IDS=[to1@email.com:]<CHAT_ID1>,[to2@email.com:]<CHAT_ID2> \
     -e ST_TELEGRAM_BOT_TOKEN=<BOT_TOKEN> \
-    kostyaesmukov/smtp_to_telegram
+    lenin4ever/smtp2tgtomail
 ```
 
 Assuming that your Email-sending software is running in docker as well,
@@ -50,5 +50,5 @@ docker run \
     -e ST_TELEGRAM_CHAT_IDS=[to1@email.com:]<CHAT_ID1>,[to2@email.com:]<CHAT_ID2> \
     -e ST_TELEGRAM_BOT_TOKEN=<BOT_TOKEN> \
     -e ST_TELEGRAM_MESSAGE_TEMPLATE="Subject: {subject}\\n\\n{body}" \
-    kostyaesmukov/smtp_to_telegram
+    lenin4ever/smtp2tgtomail
 ```
