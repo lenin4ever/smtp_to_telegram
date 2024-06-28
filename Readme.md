@@ -29,6 +29,7 @@ docker run \
     --name smtp_to_telegram \
     -e ST_TELEGRAM_CHAT_IDS=[to1@email.com:]<CHAT_ID1>,[to2@email.com:]<CHAT_ID2> \
     -e ST_TELEGRAM_BOT_TOKEN=<BOT_TOKEN> \
+    -e ST_TELEGRAM_THREAD_ID=<THREAD_ID> \
     lenin4ever/smtp2tgtomail
 ```
 
