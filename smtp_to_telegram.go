@@ -324,19 +324,20 @@ func SendMessageToChat(
 	telegramConfig *TelegramConfig,
 	client *http.Client,
 ) (*TelegramAPIMessage, error) {
-	// The native golang's http client supports
-	// http, https and socks5 proxies via HTTP_PROXY/HTTPS_PROXY env vars
-	// out of the box.
-	//
-	// See: https://golang.org/pkg/net/http/#ProxyFromEnvironment
+	values := url.Values{"chat_id": {chatId}, "text": {message.text}}
+
+	threadIDEnvVar := fmt.Sprintf("ST_TELEGRAM_THREAD_ID_%s", chatId)
+	if messageThreadId := os.Getenv(threadIDEnvVar); messageThreadId != "" {
+		values.Set("message_thread_id", messageThreadId)
+	}
+
 	resp, err := client.PostForm(
-		// https://core.telegram.org/bots/api#sendmessage
 		fmt.Sprintf(
 			"%sbot%s/sendMessage?disable_web_page_preview=true",
 			telegramConfig.telegramApiPrefix,
 			telegramConfig.telegramBotToken,
 		),
-		url.Values{"chat_id": {chatId}, "text": {message.text}},
+		values,
 	)
 	if err != nil {
 		return nil, err
@@ -376,25 +377,21 @@ func SendAttachmentToChat(
 	buf := new(bytes.Buffer)
 	w := multipart.NewWriter(buf)
 	var method string
-	// https://core.telegram.org/bots/api#sending-files
+
 	if attachment.fileType == ATTACHMENT_TYPE_DOCUMENT {
-		// https://core.telegram.org/bots/api#senddocument
 		method = "sendDocument"
 		panicIfError(w.WriteField("chat_id", chatId))
 		panicIfError(w.WriteField("reply_to_message_id", fmt.Sprintf("%s", sentMessage.MessageId)))
 		panicIfError(w.WriteField("caption", attachment.caption))
-		// TODO maybe reuse files sent to multiple chats via file_id?
 		dw, err := w.CreateFormFile("document", attachment.filename)
 		panicIfError(err)
 		_, err = dw.Write(attachment.content)
 		panicIfError(err)
 	} else if attachment.fileType == ATTACHMENT_TYPE_PHOTO {
-		// https://core.telegram.org/bots/api#sendphoto
 		method = "sendPhoto"
 		panicIfError(w.WriteField("chat_id", chatId))
 		panicIfError(w.WriteField("reply_to_message_id", fmt.Sprintf("%s", sentMessage.MessageId)))
 		panicIfError(w.WriteField("caption", attachment.caption))
-		// TODO maybe reuse files sent to multiple chats via file_id?
 		dw, err := w.CreateFormFile("photo", attachment.filename)
 		panicIfError(err)
 		_, err = dw.Write(attachment.content)
@@ -402,6 +399,12 @@ func SendAttachmentToChat(
 	} else {
 		panic(fmt.Errorf("Unknown file type %d", attachment.fileType))
 	}
+
+	threadIDEnvVar := fmt.Sprintf("ST_TELEGRAM_THREAD_ID_%s", chatId)
+	if messageThreadId := os.Getenv(threadIDEnvVar); messageThreadId != "" {
+		panicIfError(w.WriteField("message_thread_id", messageThreadId))
+	}
+
 	w.Close()
 
 	resp, err := client.Post(
