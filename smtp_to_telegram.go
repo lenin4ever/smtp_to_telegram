@@ -318,118 +318,148 @@ func SendEmailToTelegram(e *mail.Envelope,
 	return nil
 }
 
+type ChatConfig struct {
+    ChatID     string
+    ThreadID   string
+}
+
+func ParseChatConfig(chatConfig string) map[string]ChatConfig {
+    chatConfigMap := make(map[string]ChatConfig)
+    pairs := strings.Split(chatConfig, ",")
+    for _, pair := range pairs {
+        parts := strings.Split(pair, ":")
+        email := parts[0]
+        chatID := parts[1]
+        threadID := ""
+        if len(parts) > 2 {
+            threadID = parts[2]
+        }
+        chatConfigMap[email] = ChatConfig{
+            ChatID:   chatID,
+            ThreadID: threadID,
+        }
+    }
+    return chatConfigMap
+}
+
 func SendMessageToChat(
-	message *FormattedEmail,
-	chatId string,
-	telegramConfig *TelegramConfig,
-	client *http.Client,
+    message *FormattedEmail,
+    email string,
+    chatConfig map[string]ChatConfig,
+    telegramConfig *TelegramConfig,
+    client *http.Client,
 ) (*TelegramAPIMessage, error) {
-	values := url.Values{"chat_id": {chatId}, "text": {message.text}}
+    chatID := chatConfig[email].ChatID
+    threadID := chatConfig[email].ThreadID
 
-	threadIDEnvVar := fmt.Sprintf("ST_TELEGRAM_THREAD_ID_%s", chatId)
-	if messageThreadId := os.Getenv(threadIDEnvVar); messageThreadId != "" {
-		values.Set("message_thread_id", messageThreadId)
-	}
+    values := url.Values{"chat_id": {chatID}, "text": {message.text}}
 
-	resp, err := client.PostForm(
-		fmt.Sprintf(
-			"%sbot%s/sendMessage?disable_web_page_preview=true",
-			telegramConfig.telegramApiPrefix,
-			telegramConfig.telegramBotToken,
-		),
-		values,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		body, _ := ioutil.ReadAll(resp.Body)
-		return nil, errors.New(fmt.Sprintf(
-			"Non-200 response from Telegram: (%d) %s",
-			resp.StatusCode,
-			EscapeMultiLine(body),
-		))
-	}
+    if threadID != "" {
+        values.Set("message_thread_id", threadID)
+    }
 
-	j, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("Error reading json body of sendMessage: %v", err)
-	}
-	result := &TelegramAPIMessageResult{}
-	err = json.Unmarshal(j, result)
-	if err != nil {
-		return nil, fmt.Errorf("Error parsing json body of sendMessage: %v", err)
-	}
-	if result.Ok != true {
-		return nil, fmt.Errorf("ok != true: %s", j)
-	}
-	return result.Result, nil
+    resp, err := client.PostForm(
+        fmt.Sprintf(
+            "%sbot%s/sendMessage?disable_web_page_preview=true",
+            telegramConfig.telegramApiPrefix,
+            telegramConfig.telegramBotToken,
+        ),
+        values,
+    )
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+    if resp.StatusCode != 200 {
+        body, _ := ioutil.ReadAll(resp.Body)
+        return nil, errors.New(fmt.Sprintf(
+            "Non-200 response from Telegram: (%d) %s",
+            resp.StatusCode,
+            EscapeMultiLine(body),
+        ))
+    }
+
+    j, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        return nil, fmt.Errorf("Error reading json body of sendMessage: %v", err)
+    }
+    result := &TelegramAPIMessageResult{}
+    err = json.Unmarshal(j, result)
+    if err != nil {
+        return nil, fmt.Errorf("Error parsing json body of sendMessage: %v", err)
+    }
+    if result.Ok != true {
+        return nil, fmt.Errorf("ok != true: %s", j)
+    }
+    return result.Result, nil
 }
 
 func SendAttachmentToChat(
-	attachment *FormattedAttachment,
-	chatId string,
-	telegramConfig *TelegramConfig,
-	client *http.Client,
-	sentMessage *TelegramAPIMessage,
+    attachment *FormattedAttachment,
+    email string,
+    chatConfig map[string]ChatConfig,
+    telegramConfig *TelegramConfig,
+    client *http.Client,
+    sentMessage *TelegramAPIMessage,
 ) error {
-	buf := new(bytes.Buffer)
-	w := multipart.NewWriter(buf)
-	var method string
+    chatID := chatConfig[email].ChatID
+    threadID := chatConfig[email].ThreadID
 
-	if attachment.fileType == ATTACHMENT_TYPE_DOCUMENT {
-		method = "sendDocument"
-		panicIfError(w.WriteField("chat_id", chatId))
-		panicIfError(w.WriteField("reply_to_message_id", fmt.Sprintf("%s", sentMessage.MessageId)))
-		panicIfError(w.WriteField("caption", attachment.caption))
-		dw, err := w.CreateFormFile("document", attachment.filename)
-		panicIfError(err)
-		_, err = dw.Write(attachment.content)
-		panicIfError(err)
-	} else if attachment.fileType == ATTACHMENT_TYPE_PHOTO {
-		method = "sendPhoto"
-		panicIfError(w.WriteField("chat_id", chatId))
-		panicIfError(w.WriteField("reply_to_message_id", fmt.Sprintf("%s", sentMessage.MessageId)))
-		panicIfError(w.WriteField("caption", attachment.caption))
-		dw, err := w.CreateFormFile("photo", attachment.filename)
-		panicIfError(err)
-		_, err = dw.Write(attachment.content)
-		panicIfError(err)
-	} else {
-		panic(fmt.Errorf("Unknown file type %d", attachment.fileType))
-	}
+    buf := new(bytes.Buffer)
+    w := multipart.NewWriter(buf)
+    var method string
 
-	threadIDEnvVar := fmt.Sprintf("ST_TELEGRAM_THREAD_ID_%s", chatId)
-	if messageThreadId := os.Getenv(threadIDEnvVar); messageThreadId != "" {
-		panicIfError(w.WriteField("message_thread_id", messageThreadId))
-	}
+    if attachment.fileType == ATTACHMENT_TYPE_DOCUMENT {
+        method = "sendDocument"
+        panicIfError(w.WriteField("chat_id", chatID))
+        panicIfError(w.WriteField("reply_to_message_id", fmt.Sprintf("%s", sentMessage.MessageId)))
+        panicIfError(w.WriteField("caption", attachment.caption))
+        dw, err := w.CreateFormFile("document", attachment.filename)
+        panicIfError(err)
+        _, err = dw.Write(attachment.content)
+        panicIfError(err)
+    } else if attachment.fileType == ATTACHMENT_TYPE_PHOTO {
+        method = "sendPhoto"
+        panicIfError(w.WriteField("chat_id", chatID))
+        panicIfError(w.WriteField("reply_to_message_id", fmt.Sprintf("%s", sentMessage.MessageId)))
+        panicIfError(w.WriteField("caption", attachment.caption))
+        dw, err := w.CreateFormFile("photo", attachment.filename)
+        panicIfError(err)
+        _, err = dw.Write(attachment.content)
+        panicIfError(err)
+    } else {
+        panic(fmt.Errorf("Unknown file type %d", attachment.fileType))
+    }
 
-	w.Close()
+    if threadID != "" {
+        panicIfError(w.WriteField("message_thread_id", threadID))
+    }
 
-	resp, err := client.Post(
-		fmt.Sprintf(
-			"%sbot%s/%s?disable_notification=true",
-			telegramConfig.telegramApiPrefix,
-			telegramConfig.telegramBotToken,
-			method,
-		),
-		w.FormDataContentType(),
-		buf,
-	)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		body, _ := ioutil.ReadAll(resp.Body)
-		return errors.New(fmt.Sprintf(
-			"Non-200 response from Telegram: (%d) %s",
-			resp.StatusCode,
-			EscapeMultiLine(body),
-		))
-	}
-	return nil
+    w.Close()
+
+    resp, err := client.Post(
+        fmt.Sprintf(
+            "%sbot%s/%s?disable_notification=true",
+            telegramConfig.telegramApiPrefix,
+            telegramConfig.telegramBotToken,
+            method,
+        ),
+        w.FormDataContentType(),
+        buf,
+    )
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+    if resp.StatusCode != 200 {
+        body, _ := ioutil.ReadAll(resp.Body)
+        return errors.New(fmt.Sprintf(
+            "Non-200 response from Telegram: (%d) %s",
+            resp.StatusCode,
+            EscapeMultiLine(body),
+        ))
+    }
+    return nil
 }
 
 func FormatEmail(e *mail.Envelope, telegramConfig *TelegramConfig) (*FormattedEmail, error) {
