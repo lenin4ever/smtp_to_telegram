@@ -58,3 +58,20 @@ docker run \
     -e ST_TELEGRAM_MESSAGE_TEMPLATE="Subject: {subject}\\n\\n{body}" \
     lenin4ever/smtp2tg_chatid_threadid
 ```
+
+docker-compose.yml
+
+```
+version: '3'
+
+services:
+  smtp_to_telegram:
+    image: lenin4ever/smtp2tg_chatid_threadid
+    container_name: smtp2tg_chatid_threadid_compose
+    ports:
+      - "2525:2525/tcp"
+    environment:
+            - ST_TELEGRAM_CHAT_IDS=[to1@email.com:]<CHAT_ID1>:<message_thread_id>,[to2@email.com:]<CHAT_ID2>:<message_thread_id>
+            - ST_TELEGRAM_BOT_TOKEN=<BOT_TOKEN>
+    restart: unless-stopped
+```
