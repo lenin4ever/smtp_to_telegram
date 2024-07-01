@@ -13,6 +13,7 @@ all incoming Email messages to Telegram.
 Say you have a software which can send Email notifications via SMTP.
 You may use `smtp_to_telegram` as an SMTP server so
 the notification mail would be sent to the chosen Telegram chats.
+
 UPD: Modified from the original:
 1. emails are forwarded to TG depending on the mail to which the email was sent
 2. Added the ability to use TG chats with branches (message_thread_id)
