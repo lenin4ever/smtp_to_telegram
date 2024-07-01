@@ -4,8 +4,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/KostyaEsmukov/smtp_to_telegram?style=flat-square)][go report card]
 [![License](https://img.shields.io/github/license/KostyaEsmukov/smtp_to_telegram.svg?style=flat-square)][license]
 
-[docker hub]: https://hub.docker.com/r/kostyaesmukov/smtp_to_telegram
-[go report card]: https://goreportcard.com/report/github.com/KostyaEsmukov/smtp_to_telegram
+[docker hub]: https://hub.docker.com/r/lenin4ever/smtp2tg_chatid_threadid
 [license]: https://github.com/KostyaEsmukov/smtp_to_telegram/blob/master/LICENSE
 
 `smtp_to_telegram` is a small program which listens for SMTP and sends
@@ -14,6 +13,12 @@ all incoming Email messages to Telegram.
 Say you have a software which can send Email notifications via SMTP.
 You may use `smtp_to_telegram` as an SMTP server so
 the notification mail would be sent to the chosen Telegram chats.
+UPD: Modified from the original:
+1. emails are forwarded to TG depending on the mail to which the email was sent
+2. Added the ability to use TG chats with branches (message_thread_id)
+
+
+
 
 ## Getting started
 
@@ -27,9 +32,9 @@ the notification mail would be sent to the chosen Telegram chats.
 ```
 docker run \
     --name smtp_to_telegram \
-    -e ST_TELEGRAM_CHAT_IDS=[to1@email.com:]<CHAT_ID1>,[to2@email.com:]<CHAT_ID2> \
+    -e ST_TELEGRAM_CHAT_IDS=[to1@email.com:]<CHAT_ID1>:<message_thread_id>,[to2@email.com:]<CHAT_ID2>:<message_thread_id> \
     -e ST_TELEGRAM_BOT_TOKEN=<BOT_TOKEN> \
-    lenin4ever/smtp2tgtomail
+    lenin4ever/smtp2tg_chatid_threadid
 ```
 
 Assuming that your Email-sending software is running in docker as well,
@@ -47,8 +52,8 @@ A custom format might be specified as well:
 ```
 docker run \
     --name smtp_to_telegram \
-    -e ST_TELEGRAM_CHAT_IDS=[to1@email.com:]<CHAT_ID1>,[to2@email.com:]<CHAT_ID2> \
+    -e ST_TELEGRAM_CHAT_IDS=[to1@email.com:]<CHAT_ID1>:<message_thread_id>,[to2@email.com:]<CHAT_ID2>:<message_thread_id> \
     -e ST_TELEGRAM_BOT_TOKEN=<BOT_TOKEN> \
     -e ST_TELEGRAM_MESSAGE_TEMPLATE="Subject: {subject}\\n\\n{body}" \
-    lenin4ever/smtp2tgtomail
+    lenin4ever/smtp2tg_chatid_threadid
 ```
