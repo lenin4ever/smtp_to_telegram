@@ -51,6 +51,7 @@ type TelegramConfig struct {
 	forwardedAttachmentMaxPhotoSize  int
 	forwardedAttachmentRespectErrors bool
 	messageLengthToSendAsFile        uint
+	messageThreadId                  string // Нове поле для зберігання message_thread_id
 }
 
 type TelegramAPIMessageResult struct {
@@ -289,22 +290,26 @@ func SendEmailToTelegram(e *mail.Envelope,
 
 	for _, chatId := range strings.Split(telegramConfig.telegramChatIds, ",") {
 		toMail := ""
+		threadId := ""
 		if strings.Contains(chatId, ":") {
 			parsedChatId := strings.Split(chatId, ":")
 			toMail, chatId = parsedChatId[0], parsedChatId[1]
+			if len(parsedChatId) == 3 {
+				threadId = parsedChatId[2]
+			}
 		}
 		logger.Info(toMail, JoinEmailAddresses(e.RcptTo))
 		if !strings.Contains(JoinEmailAddresses(e.RcptTo), toMail) {
 			continue
 		}
-		sentMessage, err := SendMessageToChat(message, chatId, telegramConfig, &client)
+		sentMessage, err := SendMessageToChat(message, chatId, threadId, telegramConfig, &client)
 		if err != nil {
 			// If unable to send at least one message -- reject the whole email.
 			return errors.New(SanitizeBotToken(err.Error(), telegramConfig.telegramBotToken))
 		}
 
 		for _, attachment := range message.attachments {
-			err = SendAttachmentToChat(attachment, chatId, telegramConfig, &client, sentMessage)
+			err = SendAttachmentToChat(attachment, chatId, threadId, telegramConfig, &client, sentMessage)
 			if err != nil {
 				err = errors.New(SanitizeBotToken(err.Error(), telegramConfig.telegramBotToken))
 				if telegramConfig.forwardedAttachmentRespectErrors {
@@ -321,14 +326,15 @@ func SendEmailToTelegram(e *mail.Envelope,
 func SendMessageToChat(
 	message *FormattedEmail,
 	chatId string,
+	threadId string,
 	telegramConfig *TelegramConfig,
 	client *http.Client,
 ) (*TelegramAPIMessage, error) {
-	// The native golang's http client supports
-	// http, https and socks5 proxies via HTTP_PROXY/HTTPS_PROXY env vars
-	// out of the box.
-	//
-	// See: https://golang.org/pkg/net/http/#ProxyFromEnvironment
+	values := url.Values{"chat_id": {chatId}, "text": {message.text}}
+	if threadId != "" {
+		values.Add("message_thread_id", threadId)
+	}
+
 	resp, err := client.PostForm(
 		// https://core.telegram.org/bots/api#sendmessage
 		fmt.Sprintf(
@@ -336,7 +342,7 @@ func SendMessageToChat(
 			telegramConfig.telegramApiPrefix,
 			telegramConfig.telegramBotToken,
 		),
-		url.Values{"chat_id": {chatId}, "text": {message.text}},
+		values,
 	)
 	if err != nil {
 		return nil, err
@@ -369,6 +375,7 @@ func SendMessageToChat(
 func SendAttachmentToChat(
 	attachment *FormattedAttachment,
 	chatId string,
+	threadId string,
 	telegramConfig *TelegramConfig,
 	client *http.Client,
 	sentMessage *TelegramAPIMessage,
@@ -383,7 +390,9 @@ func SendAttachmentToChat(
 		panicIfError(w.WriteField("chat_id", chatId))
 		panicIfError(w.WriteField("reply_to_message_id", fmt.Sprintf("%s", sentMessage.MessageId)))
 		panicIfError(w.WriteField("caption", attachment.caption))
-		// TODO maybe reuse files sent to multiple chats via file_id?
+		if threadId != "" {
+			panicIfError(w.WriteField("message_thread_id", threadId))
+		}
 		dw, err := w.CreateFormFile("document", attachment.filename)
 		panicIfError(err)
 		_, err = dw.Write(attachment.content)
@@ -394,7 +403,9 @@ func SendAttachmentToChat(
 		panicIfError(w.WriteField("chat_id", chatId))
 		panicIfError(w.WriteField("reply_to_message_id", fmt.Sprintf("%s", sentMessage.MessageId)))
 		panicIfError(w.WriteField("caption", attachment.caption))
-		// TODO maybe reuse files sent to multiple chats via file_id?
+		if threadId != "" {
+			panicIfError(w.WriteField("message_thread_id", threadId))
+		}
 		dw, err := w.CreateFormFile("photo", attachment.filename)
 		panicIfError(err)
 		_, err = dw.Write(attachment.content)
